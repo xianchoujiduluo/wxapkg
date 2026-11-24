@@ -243,8 +243,8 @@ func (u *Unpacker) analyze(data []byte, wxapkgFilePath string) ([]*WxapkgFileIte
 		if !strings.HasPrefix(item.savePath, u.item.UnpackSavePath) {
 			return nil, errors.Errorf("文件名 %s 会导致目录穿越", item.name)
 		}
-		if item.size > 10*1024*1024 {
-			return nil, errors.Errorf("文件名 %s 标记长度 %d 超出上限 10 MB", item.name, item.size)
+		if int64(item.offset)+int64(item.size) > int64(len(data)) {
+			return nil, errors.Errorf("文件名 %s 的偏移量 %d 加上长度 %d 超出文件大小 %d", item.name, item.offset, item.size, len(data))
 		}
 
 		result[i] = item
