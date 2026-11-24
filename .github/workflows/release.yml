@@ -43,8 +43,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      # 锁定与 go.mod 一致的 wails CLI 版本：@latest 已指向 v2.17.1，其要求 Go >= 1.26，
+      # 与本项目 go 1.25 的 go.mod 冲突（GOTOOLCHAIN=local 下直接安装失败）
       - name: Get Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        shell: bash
+        run: |
+          WAILS_VERSION=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+          echo "wails cli version: $WAILS_VERSION"
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+          wails version
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
