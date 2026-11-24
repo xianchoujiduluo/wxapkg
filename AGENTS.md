@@ -9,24 +9,26 @@
 工具链：Go 1.25（见 `go.mod`）、Node（CI 未锁定版本）、Wails CLI。
 
 ```bash
-# 首次准备
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+# 首次准备（CLI 版本必须与 go.mod 中 wails/v2 的版本一致，不要用 @latest）
+go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
 cd frontend && npm install && cd ..
 
 # 开发（热更新）
 wails dev
 
 # 构建，产物在 build/bin/
-wails build
-wails build -platform darwin/universal   # macOS 通用包
+wails build -platform windows/amd64   # Windows x64
+wails build -platform darwin/arm64    # macOS Apple Silicon
 
 # 后端签名变更后必须重新生成前端绑定
 wails generate module
 ```
 
+- **wails CLI 版本坑**：`@latest` 已指向 v2.17.x，其 `go.mod` 要求 Go ≥ 1.26，在本项目 `go 1.25` + `GOTOOLCHAIN=local` 下会直接安装失败。必须锁定 v2.12.0（配套 CI 步骤会自动从 `go.mod` 读取）。
 - 后端改动可用 `go vet ./...` / `go build ./...` 做最小校验；**仓库内没有测试**，不要自行新增测试文件或测试用例，除非明确要求。
 - 前端只用 `npm run build`（等同于 `vite build --mode production`）验证能否编译；`npm run lint` 不存在（`package.json` 无 lint 脚本）。
-- 本机（开发机 A）当前**没有 Go / Wails 工具链**。需要编译验证时先确认环境，不要擅自下载安装工具链或浏览器（`wails dev` 会拉起 webview/浏览器）。
+- 本机（开发机 A）当前**没有 Go / Wails 工具链**；编译验证统一在服务器 B 上做（已装 gvm + Go 1.25.14，工程位于 `~/workspace/wxapkg`）。不要擅自下载安装工具链或浏览器（`wails dev` 会拉起 webview/浏览器）。
+- Linux 上无法 `wails build` 出 Windows/macOS 安装包（需 mingw / macOS SDK），但 `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build .` 与 `GOOS=darwin GOARCH=arm64 go build .` 可以验证编译面（`//go:embed all:frontend/dist` 需先造一个占位 `frontend/dist/index.html`）。
 - 依赖管理：`wails.json` 与 `.github/workflows/release.yml` 都是 **npm + package-lock.json**（CI 用 npm cache）。虽然个人偏好 pnpm，但改这里会破坏 CI 缓存，动手前先问。
 
 ## 代码结构
