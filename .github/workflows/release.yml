@@ -9,18 +9,24 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # Windows 64 位
           - os: windows-latest
+            platform: windows/amd64
             artifact_name: wxapkg-gui-windows-x64
             upload_name: wxapkg-gui-windows-x64.exe
+          # macOS Apple Silicon（仅 arm64，不构建 x86_64 / universal）
           - os: macos-latest
-            artifact_name: wxapkg-gui-darwin
-            upload_name: wxapkg-gui-darwin.app.zip
+            platform: darwin/arm64
+            artifact_name: wxapkg-gui-darwin-arm64
+            upload_name: wxapkg-gui-darwin-arm64.zip
 
     runs-on: ${{ matrix.os }}
+    name: build ${{ matrix.artifact_name }}
 
     steps:
       - name: Checkout
@@ -44,21 +50,23 @@ jobs:
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: wails build
-        working-directory: .
+        run: wails build -platform ${{ matrix.platform }}
 
       - name: Rename artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: mv build/bin/wxapkg-gui.exe build/bin/${{ matrix.artifact_name }}.exe
+        run: mv build/bin/wxapkg-gui.exe build/bin/${{ matrix.upload_name }}
 
-      - name: Build and zip macOS
+      - name: Build macOS arm64
         if: matrix.os == 'macos-latest'
         env:
           MACOSX_DEPLOYMENT_TARGET: '10.13'
+        run: wails build -platform ${{ matrix.platform }}
+
+      - name: Package .app (macOS)
+        if: matrix.os == 'macos-latest'
         shell: bash
         run: |
-          wails build -platform darwin/universal
           ditto -c -k --keepParent build/bin/wxapkg-gui.app build/bin/${{ matrix.upload_name }}
           rm -rf build/bin/wxapkg-gui.app
 
@@ -70,7 +78,7 @@ jobs:
 
       - name: Compress with UPX (Windows only)
         if: matrix.os == 'windows-latest'
-        run: .\upx-4.2.2-win64\upx.exe --best --lzma build\bin\${{ matrix.artifact_name }}.exe
+        run: .\upx-4.2.2-win64\upx.exe --best --lzma build\bin\${{ matrix.upload_name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -79,7 +87,7 @@ jobs:
           path: build/bin/${{ matrix.upload_name }}
 
   publish:
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
